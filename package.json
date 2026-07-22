@@ -1,0 +1,45 @@
+{
+  "name": "@gaffa-dev/cli",
+  "version": "0.0.1",
+  "description": "The Gaffa command line tool.",
+  "license": "MIT",
+  "author": {
+    "name": "Impetus Labs Ltd",
+    "email": "support@gaffa.dev"
+  },
+  "homepage": "https://gaffa.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GaffaAI/gaffa-cli.git"
+  },
+  "type": "module",
+  "bin": {
+    "gaffa": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "pretest": "npm run build",
+    "test": "node --test",
+    "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.1.1",
+    "eslint": "^10.7.0",
+    "globals": "^17.7.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.65.0"
+  }
+}
