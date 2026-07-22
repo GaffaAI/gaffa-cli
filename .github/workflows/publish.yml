@@ -1,0 +1,42 @@
+name: Publish
+
+# Publishes to npm when a version tag is pushed, for example v0.0.1.
+# A tag with a prerelease part (v0.0.1-rc.1) goes out under the "next" dist-tag,
+# so it never becomes the default install and a bad one can be dropped without
+# affecting anyone on "latest".
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write # required for npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
+      - name: Pick the dist-tag
+        id: tag
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [[ "$version" == *-* ]]; then
+            echo "dist=next" >> "$GITHUB_OUTPUT"
+          else
+            echo "dist=latest" >> "$GITHUB_OUTPUT"
+          fi
+      - run: npm publish --provenance --access public --tag ${{ steps.tag.outputs.dist }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
