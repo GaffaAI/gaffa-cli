@@ -1,8 +1,7 @@
 # @gaffa-dev/cli
 
-The Gaffa command line tool. This is the skeleton. It ships with `--version` and
-`--help` and nothing else yet, and exists to prove the release path before there
-is anything real to release.
+The Gaffa command line tool for setting your AI coding tools up with the Gaffa
+skills.
 
 ## Use it
 
@@ -12,6 +11,22 @@ No install needed, run it through npx:
 npx @gaffa-dev/cli --help
 npx @gaffa-dev/cli --version
 ```
+
+### doctor
+
+`doctor` reports which of the supported tools are on your machine, where each
+keeps its config, and whether the gaffa skills are already set up in it. It reads
+only and writes nothing.
+
+```
+npx @gaffa-dev/cli doctor
+npx @gaffa-dev/cli doctor --json
+```
+
+Supported tools: Claude Code, Codex, GitHub Copilot, Cursor and Antigravity.
+Each is detected by its config directory rather than a binary on the path, since
+an IDE may put nothing on the path. `--json` prints the same result as structured
+output for scripts.
 
 ## Develop
 
