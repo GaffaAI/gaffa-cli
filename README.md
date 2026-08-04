@@ -45,9 +45,14 @@ the built binary and check its output, so `npm test` builds first.
 Pushing a version tag runs the publish workflow, which lints, builds, tests, then
 publishes to npm with provenance.
 
+Main only takes pull requests, so bump `package.json` on a branch and deliver it
+as a pull request. Once that merges, tag the merge commit on main and push the
+tag. Tagging the branch commit instead would leave the tag pointing at a commit
+the squash merge discards.
+
 ```
-npm version patch      # bumps package.json and creates the tag
-git push --follow-tags
+git tag v0.0.2 <merge commit>
+git push origin v0.0.2
 ```
 
 A plain tag (`v0.0.1`) publishes under `latest`. A prerelease tag (`v0.0.1-rc.1`)
