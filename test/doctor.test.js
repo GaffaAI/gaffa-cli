@@ -135,11 +135,11 @@ test("only gaffa-* directories with a SKILL.md count as skills", () => {
     const skillsDir = join(cwd, ".agents", "skills");
     mkdirSync(join(skillsDir, "gaffa-nope"), { recursive: true }); // no SKILL.md
     skill(skillsDir, "other-skill"); // has SKILL.md but not a gaffa skill
-    skill(skillsDir, "gaffa-bulk"); // counts
+    skill(skillsDir, "gaffa-find"); // counts
     const loc = report(inspectTools({ home, cwd, env: {} }), "codex").skillLocations.find(
       (l) => l.scope === "project",
     );
-    assert.deepEqual(loc.skills, ["gaffa-bulk"]);
+    assert.deepEqual(loc.skills, ["gaffa-find"]);
   } finally {
     rmSync(home, { recursive: true, force: true });
     rmSync(cwd, { recursive: true, force: true });
