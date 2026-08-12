@@ -28,6 +28,36 @@ Each is detected by its config directory rather than a binary on the path, since
 an IDE may put nothing on the path. `--json` prints the same result as structured
 output for scripts.
 
+### install
+
+`install` copies the gaffa skills into the tools you pick and writes a receipt
+next to them, so a later uninstall knows exactly what it wrote.
+
+```
+npx @gaffa-dev/cli install
+npx @gaffa-dev/cli install --tools=claude-code,codex --scope=personal
+```
+
+With no flags it asks which tools (defaulting to the ones it detects) and which
+scope. Pass `--tools`, `--scope` and `-y` to run it unattended, for example in
+CI. `--scope=project` writes into the working directory so you can commit the
+skills with the repo, `--scope=personal` writes into your home config. A second
+install refreshes to the current skills and drops any it wrote before that no
+longer exist.
+
+Until the skills are published to npm, point install at a local checkout with
+`--skills-dir` or `GAFFA_SKILLS_DIR`.
+
+### uninstall
+
+`uninstall` removes the skills a previous install wrote, for a scope. A skill you
+have edited since is left in place and reported, so your own changes are never
+lost.
+
+```
+npx @gaffa-dev/cli uninstall --scope=project
+```
+
 ## Develop
 
 ```

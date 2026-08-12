@@ -23,7 +23,7 @@ interface SkillDir {
   segments: string[];
 }
 
-interface Tool {
+export interface Tool {
   id: string;
   label: string;
   // Environment variable that overrides the config directory, if the tool has one.
@@ -149,24 +149,37 @@ function resolveConfigPath(tool: Tool, ctx: DoctorContext): string {
   return join(ctx.home, ...tool.configSegments);
 }
 
+export interface SkillTarget {
+  scope: Scope;
+  path: string;
+}
+
+// The resolved skill directories a tool reads, in the tool's declared order. The
+// first target of a given scope is the one to write to: a tool that reads more
+// than one dir reads any of them, so install writes the first and does not
+// duplicate into the rest.
+export function skillTargets(tool: Tool, ctx: DoctorContext): SkillTarget[] {
+  const configPath = resolveConfigPath(tool, ctx);
+  return tool.skillDirs.map((dir) => {
+    let base: string;
+    if (dir.scope === "project") base = ctx.cwd;
+    else if (dir.fromConfig) base = configPath;
+    else base = ctx.home;
+    return { scope: dir.scope, path: join(base, ...dir.segments) };
+  });
+}
+
 // Inspect every target tool against the given home, working directory and
 // environment. Reads the filesystem, writes nothing.
 export function inspectTools(ctx: DoctorContext): ToolReport[] {
   return TOOLS.map((tool) => {
     const configPath = resolveConfigPath(tool, ctx);
-    const skillLocations = tool.skillDirs.map((dir) => {
-      let base: string;
-      if (dir.scope === "project") base = ctx.cwd;
-      else if (dir.fromConfig) base = configPath;
-      else base = ctx.home;
-      const path = join(base, ...dir.segments);
-      return {
-        scope: dir.scope,
-        path,
-        exists: isDirectory(path),
-        skills: gaffaSkillsIn(path),
-      };
-    });
+    const skillLocations = skillTargets(tool, ctx).map((t) => ({
+      scope: t.scope,
+      path: t.path,
+      exists: isDirectory(t.path),
+      skills: gaffaSkillsIn(t.path),
+    }));
     return {
       id: tool.id,
       label: tool.label,
