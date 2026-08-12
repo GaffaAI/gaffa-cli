@@ -57,7 +57,7 @@ git push origin v0.0.2
 
 A plain tag (`v0.0.1`) publishes under `latest`. A prerelease tag (`v0.0.1-rc.1`)
 publishes under `next`, so it is opt-in and a bad one can be dropped without
-touching anyone on `latest`. Every pull request runs `npm publish --dry-run` on
+touching anyone on `latest`. Every pull request runs `npm pack --dry-run` on
 Windows, macOS and Linux, so packaging problems show up before a real release.
 
 The final package name is not fixed. `gaffa` is taken on npm, so the skeleton
