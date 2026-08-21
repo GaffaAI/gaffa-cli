@@ -23,5 +23,8 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm test
-      # Prove the package builds and packs cleanly on every change, without publishing.
-      - run: npm publish --dry-run
+      # Prove the package packs cleanly on every change. npm pack rather than
+      # npm publish --dry-run, since newer npm rejects a publish dry-run whenever
+      # package.json holds an already released version, which is the normal state
+      # of every pull request between releases.
+      - run: npm pack --dry-run
