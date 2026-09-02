@@ -257,12 +257,16 @@ test("cli install writes skills for a project scope in the working directory", (
   }
 });
 
-test("cli install with no skills source errors and writes nothing", () => {
+test("cli install with a missing skills dir errors and writes nothing", () => {
   const cwd = tmp();
   try {
-    const { code, stderr } = run(["install", "--tools=codex", "--scope=project", "--yes"], cwd);
+    const { code, stderr } = run(
+      ["install", "--tools=codex", "--scope=project", `--skills-dir=${join(cwd, "nope")}`, "--yes"],
+      cwd,
+    );
     assert.equal(code, 1);
-    assert.match(stderr, /GAFFA_SKILLS_DIR|skills source/);
+    assert.match(stderr, /skills source not found/);
+    assert.ok(!existsSync(join(cwd, ".agents")));
   } finally {
     cleanup(cwd);
   }

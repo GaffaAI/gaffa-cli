@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { inspectTools } from "../dist/tools.js";
 import { runDoctor } from "../dist/doctor.js";
+import { writeReceipt } from "../dist/receipt.js";
 
 const cli = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 
@@ -146,11 +147,11 @@ test("only gaffa-* directories with a SKILL.md count as skills", () => {
   }
 });
 
-test("json output has a tools array with an entry per tool", () => {
+test("json output has a tools array with an entry per tool", async () => {
   const home = tmp();
   const cwd = tmp();
   try {
-    const parsed = JSON.parse(runDoctor({ home, cwd, env: {} }, true));
+    const parsed = JSON.parse(await runDoctor({ home, cwd, env: {} }, true));
     assert.equal(parsed.tools.length, 5);
     assert.ok(parsed.tools.every((t) => "installed" in t && "configPath" in t));
   } finally {
@@ -159,14 +160,96 @@ test("json output has a tools array with an entry per tool", () => {
   }
 });
 
-test("human output names every tool", () => {
+test("human output names every tool", async () => {
   const home = tmp();
   const cwd = tmp();
   try {
-    const out = runDoctor({ home, cwd, env: {} }, false);
+    const out = await runDoctor({ home, cwd, env: {} }, false);
     for (const label of ["Claude Code", "Codex", "GitHub Copilot", "Cursor", "Antigravity"]) {
       assert.match(out, new RegExp(label));
     }
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+// A receipt in cwd/.agents/skills, the loose-file install the version check reads.
+function receiptAt(cwd, version) {
+  const dir = join(cwd, ".agents", "skills");
+  mkdirSync(dir, { recursive: true });
+  writeReceipt(dir, { version, scope: "project", files: [] });
+}
+
+test("doctor reports a newer published skills version", async () => {
+  const home = tmp();
+  const cwd = tmp();
+  try {
+    receiptAt(cwd, "0.1.0");
+    const out = await runDoctor({ home, cwd, env: {} }, false, async () => "0.2.0");
+    assert.match(out, /newer skills version is published: 0\.2\.0 \(installed 0\.1\.0\)/);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("doctor compares against the oldest receipt by version, not by string order", async () => {
+  const home = tmp();
+  const cwd = tmp();
+  try {
+    receiptAt(cwd, "0.10.0");
+    const claude = join(cwd, ".claude", "skills");
+    mkdirSync(claude, { recursive: true });
+    writeReceipt(claude, { version: "0.2.0", scope: "project", files: [] });
+    const out = await runDoctor({ home, cwd, env: {} }, false, async () => "0.10.0");
+    assert.match(out, /newer skills version is published: 0\.10\.0 \(installed 0\.2\.0\)/);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("doctor stays quiet when the installed skills are current", async () => {
+  const home = tmp();
+  const cwd = tmp();
+  try {
+    receiptAt(cwd, "0.2.0");
+    const out = await runDoctor({ home, cwd, env: {} }, false, async () => "0.2.0");
+    assert.doesNotMatch(out, /newer skills version/);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("doctor says so and carries on when the registry is unreachable", async () => {
+  const home = tmp();
+  const cwd = tmp();
+  try {
+    receiptAt(cwd, "0.1.0");
+    const out = await runDoctor({ home, cwd, env: {} }, false, async () => {
+      throw new Error("offline");
+    });
+    assert.match(out, /Could not check npm/);
+    assert.match(out, /Codex/); // the report itself still renders
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("doctor skips the version check without a receipt", async () => {
+  const home = tmp();
+  const cwd = tmp();
+  try {
+    let called = false;
+    const out = await runDoctor({ home, cwd, env: {} }, false, async () => {
+      called = true;
+      return "9.9.9";
+    });
+    assert.equal(called, false);
+    assert.doesNotMatch(out, /newer skills version/);
   } finally {
     rmSync(home, { recursive: true, force: true });
     rmSync(cwd, { recursive: true, force: true });

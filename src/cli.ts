@@ -4,7 +4,7 @@ import { sep } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { runDoctor, processContext } from "./doctor.js";
 import { inspectTools, TOOLS, type DoctorContext, type Scope } from "./tools.js";
-import { readLocalSource } from "./skills-source.js";
+import { fetchNpmSource, readLocalSource } from "./skills-source.js";
 import { install, uninstall, type InstallResult, type UninstallResult } from "./install.js";
 
 const pkg = JSON.parse(
@@ -21,11 +21,12 @@ Usage
 Commands
   doctor          Report which AI coding tools are installed and whether the
                   gaffa skills are set up in them. Add --json for machine output.
-  install         Copy the gaffa skills into the tools you pick.
+  install         Fetch the latest gaffa skills from npm and copy them into the
+                  tools you pick.
                     --tools=a,b        tool ids, default the installed ones
                     --scope=project    or personal, default project
-                    --skills-dir=PATH  where to read the skills from,
-                                       or set GAFFA_SKILLS_DIR
+                    --skills-dir=PATH  read the skills from a local checkout
+                                       instead of npm, or set GAFFA_SKILLS_DIR
                     -y, --yes          take the defaults, do not prompt
   uninstall       Remove skills a previous install wrote, for a scope. A skill you
                   edited since is left in place and reported.
@@ -37,8 +38,6 @@ Options
   -h, --help      Show this help and exit
 
 Tool ids: ${IDS}.
-Until the skills are on npm, point install at a local checkout with --skills-dir
-or GAFFA_SKILLS_DIR.
 `;
 
 interface Flags {
@@ -128,16 +127,11 @@ async function runInstall(flags: Flags): Promise<number> {
   const ctx = processContext();
   const interactive = Boolean(process.stdin.isTTY) && !flags.bools.has("yes");
 
+  // The skills come from npm unless a local checkout is pointed at explicitly.
   const skillsDir = flags.values["skills-dir"] ?? ctx.env["GAFFA_SKILLS_DIR"];
-  if (!skillsDir) {
-    process.stderr.write(
-      "No skills source. Pass --skills-dir or set GAFFA_SKILLS_DIR.\nFetching them from npm arrives with GAF-705.\n",
-    );
-    return 1;
-  }
   let source;
   try {
-    source = readLocalSource(skillsDir);
+    source = skillsDir ? readLocalSource(skillsDir) : await fetchNpmSource();
   } catch (err) {
     process.stderr.write(`${(err as Error).message}\n`);
     return 1;
@@ -210,7 +204,7 @@ async function main(argv: string[]): Promise<number> {
   const flags = parseFlags(rest);
 
   if (command === "doctor") {
-    process.stdout.write(runDoctor(processContext(), rest.includes("--json")));
+    process.stdout.write(await runDoctor(processContext(), rest.includes("--json")));
     return 0;
   }
   if (command === "install") return runInstall(flags);

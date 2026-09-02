@@ -5,6 +5,8 @@
 import { homedir } from "node:os";
 import { sep } from "node:path";
 import { inspectTools, type DoctorContext, type ToolReport } from "./tools.js";
+import { readReceipt } from "./receipt.js";
+import { fetchLatestVersion } from "./skills-source.js";
 
 // Replace a leading home directory with ~ for a shorter, readable path. Only
 // when home is the whole path or a real path prefix, so /Users/dom does not turn
@@ -46,10 +48,53 @@ export function formatJson(reports: ToolReport[]): string {
   return JSON.stringify({ tools: reports }, null, 2) + "\n";
 }
 
-// Build the doctor report as text. `json` selects the machine-readable form.
-export function runDoctor(ctx: DoctorContext, json: boolean): string {
+// True when latest is a higher version than installed, by numeric x.y.z parts.
+// Good enough for our published versions plus the 0.0.0-local placeholder, and
+// a version it cannot read never triggers the line.
+function isNewer(latest: string, installed: string): boolean {
+  const parts = (v: string) => v.split("-")[0].split(".").map(Number);
+  const [a, b] = [parts(latest), parts(installed)];
+  if (a.some(Number.isNaN) || b.some(Number.isNaN)) return false;
+  for (let i = 0; i < 3; i++) {
+    if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  }
+  return false;
+}
+
+// The version check for loose-file installs: compare the oldest installed
+// receipt against the latest published skills, and say when a newer one exists.
+// Prints at most one line, writes nothing, and an unreachable registry is
+// reported rather than failing the doctor run.
+async function versionCheck(
+  reports: ToolReport[],
+  fetchLatest: () => Promise<string>,
+): Promise<string> {
+  const dirs = new Set(reports.flatMap((r) => r.skillLocations.map((l) => l.path)));
+  const installed = [...dirs]
+    .map((dir) => readReceipt(dir)?.version)
+    .filter((v): v is string => Boolean(v));
+  if (installed.length === 0) return "";
+  const oldest = installed.reduce((min, v) => (isNewer(min, v) ? v : min));
+  let latest;
+  try {
+    latest = await fetchLatest();
+  } catch {
+    return "\nCould not check npm for a newer skills version.\n";
+  }
+  if (!isNewer(latest, oldest)) return "";
+  return `\nA newer skills version is published: ${latest} (installed ${oldest}). Run gaffa install to refresh.\n`;
+}
+
+// Build the doctor report as text. `json` selects the machine-readable form,
+// which skips the version check to stay offline and stable.
+export async function runDoctor(
+  ctx: DoctorContext,
+  json: boolean,
+  fetchLatest: () => Promise<string> = fetchLatestVersion,
+): Promise<string> {
   const reports = inspectTools(ctx);
-  return json ? formatJson(reports) : formatHuman(reports, ctx.home);
+  if (json) return formatJson(reports);
+  return formatHuman(reports, ctx.home) + (await versionCheck(reports, fetchLatest));
 }
 
 // Context from the real process, used by the CLI. Kept separate so tests can
