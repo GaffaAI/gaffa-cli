@@ -48,11 +48,18 @@ longer exist.
 Until the skills are published to npm, point install at a local checkout with
 `--skills-dir` or `GAFFA_SKILLS_DIR`.
 
+The same run also registers the Gaffa docs MCP server (`https://gaffa.dev/docs/~gitbook/mcp`)
+in each tool's own MCP config, merging into an existing config without touching
+your other servers. A config it cannot parse is backed up and left alone. Pass
+`--no-mcp` to skip this. At project scope Claude Code will ask you to approve the
+server the first time you use it.
+
 ### uninstall
 
-`uninstall` removes the skills a previous install wrote, for a scope. A skill you
-have edited since is left in place and reported, so your own changes are never
-lost.
+`uninstall` removes the skills a previous install wrote, for a scope, and the
+docs MCP server it registered. A skill you have edited since is left in place and
+reported, so your own changes are never lost. An MCP entry you have re-pointed
+elsewhere is left alone. Pass `--no-mcp` to keep the server registered.
 
 ```
 npx @gaffa-dev/cli uninstall --scope=project

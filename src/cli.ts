@@ -6,6 +6,7 @@ import { runDoctor, processContext } from "./doctor.js";
 import { inspectTools, TOOLS, type DoctorContext, type Scope } from "./tools.js";
 import { fetchNpmSource, readLocalSource } from "./skills-source.js";
 import { install, uninstall, type InstallResult, type UninstallResult } from "./install.js";
+import { registerMcp, unregisterMcp, type McpResult } from "./mcp.js";
 
 const pkg = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
@@ -22,15 +23,18 @@ Commands
   doctor          Report which AI coding tools are installed and whether the
                   gaffa skills are set up in them. Add --json for machine output.
   install         Fetch the latest gaffa skills from npm and copy them into the
-                  tools you pick.
+                  tools you pick, and register the gaffa docs MCP server in each.
                     --tools=a,b        tool ids, default the installed ones
                     --scope=project    or personal, default project
                     --skills-dir=PATH  read the skills from a local checkout
                                        instead of npm, or set GAFFA_SKILLS_DIR
+                    --no-mcp           skip registering the docs MCP server
                     -y, --yes          take the defaults, do not prompt
-  uninstall       Remove skills a previous install wrote, for a scope. A skill you
-                  edited since is left in place and reported.
+  uninstall       Remove skills a previous install wrote, for a scope, and the
+                  docs MCP server. A skill you edited since is left in place and
+                  reported.
                     --scope=project    or personal, default project
+                    --no-mcp           leave the docs MCP server in place
                     -y, --yes          take the defaults, do not prompt
 
 Options
@@ -123,6 +127,45 @@ function formatUninstall(results: UninstallResult[], ctx: DoctorContext): string
   return lines.join("\n") + "\n";
 }
 
+// The human words for each outcome, kept short.
+const MCP_WORDS: Record<McpResult["outcome"], string> = {
+  added: "added",
+  updated: "updated",
+  unchanged: "already set",
+  removed: "removed",
+  refused: "could not parse, skipped",
+  skipped: "skipped",
+};
+
+function formatMcpRegister(results: McpResult[], ctx: DoctorContext): string {
+  if (results.length === 0) return "";
+  const lines = ["", "Registered the gaffa-docs MCP server:"];
+  for (const r of results) {
+    const detail = r.detail ? `  (${r.detail})` : "";
+    lines.push(`  ${r.label}  ${shortPath(r.path, ctx)}  ${MCP_WORDS[r.outcome]}${detail}`);
+  }
+  // Claude Code prompts for approval of a project-scoped server on first use.
+  const claudeProject = results.some(
+    (r) => r.toolId === "claude-code" && r.scope === "project" && (r.outcome === "added" || r.outcome === "updated"),
+  );
+  if (claudeProject) {
+    lines.push("");
+    lines.push("Claude Code will ask you to approve the project MCP server the first time you use it.");
+  }
+  return lines.join("\n") + "\n";
+}
+
+function formatMcpUnregister(results: McpResult[], ctx: DoctorContext): string {
+  const touched = results.filter((r) => r.outcome !== "skipped" || r.detail);
+  if (touched.length === 0) return "";
+  const lines = ["", "gaffa-docs MCP server:"];
+  for (const r of touched) {
+    const detail = r.detail ? `  (${r.detail})` : "";
+    lines.push(`  ${r.label}  ${shortPath(r.path, ctx)}  ${MCP_WORDS[r.outcome]}${detail}`);
+  }
+  return lines.join("\n") + "\n";
+}
+
 async function runInstall(flags: Flags): Promise<number> {
   const ctx = processContext();
   const interactive = Boolean(process.stdin.isTTY) && !flags.bools.has("yes");
@@ -169,6 +212,9 @@ async function runInstall(flags: Flags): Promise<number> {
   }
 
   process.stdout.write(formatInstall(install(ctx, { tools, scope, source }), source.version, ctx));
+  if (!flags.bools.has("no-mcp")) {
+    process.stdout.write(formatMcpRegister(registerMcp(ctx, { tools, scope }), ctx));
+  }
   return 0;
 }
 
@@ -185,6 +231,9 @@ async function runUninstall(flags: Flags): Promise<number> {
   }
 
   process.stdout.write(formatUninstall(uninstall(ctx, scope), ctx));
+  if (!flags.bools.has("no-mcp")) {
+    process.stdout.write(formatMcpUnregister(unregisterMcp(ctx, scope), ctx));
+  }
   return 0;
 }
 

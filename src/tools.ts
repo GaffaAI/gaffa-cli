@@ -23,6 +23,35 @@ interface SkillDir {
   segments: string[];
 }
 
+// A tool's MCP config file at one scope. `project` is relative to the working
+// directory, `personal` to the home directory unless `fromConfig` is set, in
+// which case it is relative to the tool's resolved config directory.
+export interface McpFile {
+  scope: Scope;
+  fromConfig?: boolean;
+  // Base the personal path on the config-env override directory if it is set,
+  // else the home directory. Used by a file that sits beside the config dir
+  // rather than inside it, like Claude Code's ~/.claude.json which moves to
+  // $CLAUDE_CONFIG_DIR/.claude.json when that variable is set.
+  fromConfigEnv?: boolean;
+  segments: string[];
+}
+
+// How to register the gaffa docs MCP server in a tool. Each tool keeps the
+// server list under `mcpServers` (JSON) or `[mcp_servers.NAME]` (TOML), but the
+// entry shape differs: the field carrying the URL, whether a `type` is required,
+// and any fixed extras. All verified against each tool's own docs (GAF-669).
+export interface McpConfig {
+  format: "json" | "toml";
+  files: McpFile[];
+  // The field name that carries the server URL in an entry.
+  urlKey: "url" | "serverUrl";
+  // A `type` the entry needs, if any (Claude Code and Copilot want "http").
+  type?: string;
+  // Fixed extra fields on the entry (Copilot wants a tools allowlist).
+  extra?: Record<string, unknown>;
+}
+
 export interface Tool {
   id: string;
   label: string;
@@ -31,6 +60,8 @@ export interface Tool {
   // Config directory under the home directory, the marker that the tool is installed.
   configSegments: string[];
   skillDirs: SkillDir[];
+  // How to register the docs MCP server, if we register it for this tool.
+  mcp?: McpConfig;
 }
 
 // The gaffa skills we look for. A skill copy is a directory named `gaffa-*` that
@@ -47,6 +78,17 @@ export const TOOLS: Tool[] = [
       { scope: "project", segments: [".claude", "skills"] },
       { scope: "personal", fromConfig: true, segments: ["skills"] },
     ],
+    // user scope writes ~/.claude.json (or $CLAUDE_CONFIG_DIR/.claude.json when
+    // that is set), project scope writes .mcp.json.
+    mcp: {
+      format: "json",
+      files: [
+        { scope: "personal", fromConfigEnv: true, segments: [".claude.json"] },
+        { scope: "project", segments: [".mcp.json"] },
+      ],
+      urlKey: "url",
+      type: "http",
+    },
   },
   {
     id: "codex",
@@ -58,6 +100,16 @@ export const TOOLS: Tool[] = [
       { scope: "project", segments: [".agents", "skills"] },
       { scope: "personal", segments: [".agents", "skills"] },
     ],
+    // TOML, not JSON. HTTP transport is supported on current Codex, older
+    // versions were stdio only, so an old install ignores this entry.
+    mcp: {
+      format: "toml",
+      files: [
+        { scope: "personal", fromConfig: true, segments: ["config.toml"] },
+        { scope: "project", segments: [".codex", "config.toml"] },
+      ],
+      urlKey: "url",
+    },
   },
   {
     id: "copilot",
@@ -70,6 +122,15 @@ export const TOOLS: Tool[] = [
       { scope: "personal", fromConfig: true, segments: ["skills"] },
       { scope: "personal", segments: [".agents", "skills"] },
     ],
+    // Only the personal file (~/.copilot/mcp-config.json) is documented, so a
+    // project install writes no Copilot MCP entry.
+    mcp: {
+      format: "json",
+      files: [{ scope: "personal", fromConfig: true, segments: ["mcp-config.json"] }],
+      urlKey: "url",
+      type: "http",
+      extra: { tools: ["*"] },
+    },
   },
   {
     id: "cursor",
@@ -79,6 +140,14 @@ export const TOOLS: Tool[] = [
       { scope: "project", segments: [".agents", "skills"] },
       { scope: "project", segments: [".claude", "skills"] },
     ],
+    mcp: {
+      format: "json",
+      files: [
+        { scope: "personal", segments: [".cursor", "mcp.json"] },
+        { scope: "project", segments: [".cursor", "mcp.json"] },
+      ],
+      urlKey: "url",
+    },
   },
   {
     id: "antigravity",
@@ -92,6 +161,15 @@ export const TOOLS: Tool[] = [
       { scope: "project", segments: [".agent", "skills"] },
       { scope: "personal", segments: [".gemini", "config", "skills"] },
     ],
+    // Antigravity uses serverUrl for remote servers, not url.
+    mcp: {
+      format: "json",
+      files: [
+        { scope: "personal", segments: [".gemini", "config", "mcp_config.json"] },
+        { scope: "project", segments: [".agents", "mcp_config.json"] },
+      ],
+      urlKey: "serverUrl",
+    },
   },
 ];
 
@@ -143,10 +221,13 @@ function gaffaSkillsIn(dir: string): string[] {
     .sort();
 }
 
-function resolveConfigPath(tool: Tool, ctx: DoctorContext): string {
+function configEnvOverride(tool: Tool, ctx: DoctorContext): string | undefined {
   const override = tool.configEnv ? ctx.env[tool.configEnv] : undefined;
-  if (override && override.length > 0) return override;
-  return join(ctx.home, ...tool.configSegments);
+  return override && override.length > 0 ? override : undefined;
+}
+
+function resolveConfigPath(tool: Tool, ctx: DoctorContext): string {
+  return configEnvOverride(tool, ctx) ?? join(ctx.home, ...tool.configSegments);
 }
 
 export interface SkillTarget {
@@ -167,6 +248,37 @@ export function skillTargets(tool: Tool, ctx: DoctorContext): SkillTarget[] {
     else base = ctx.home;
     return { scope: dir.scope, path: join(base, ...dir.segments) };
   });
+}
+
+export interface McpTarget {
+  path: string;
+  format: "json" | "toml";
+  urlKey: "url" | "serverUrl";
+  type?: string;
+  extra?: Record<string, unknown>;
+}
+
+// The MCP config file to write for a tool at a scope, or undefined if the tool
+// has no known MCP location there. Resolves the path the same way skillTargets
+// does: project under the working directory, personal under home unless the
+// file follows the tool's config directory.
+export function mcpTarget(tool: Tool, scope: Scope, ctx: DoctorContext): McpTarget | undefined {
+  const mcp = tool.mcp;
+  if (!mcp) return undefined;
+  const file = mcp.files.find((f) => f.scope === scope);
+  if (!file) return undefined;
+  let base: string;
+  if (file.scope === "project") base = ctx.cwd;
+  else if (file.fromConfig) base = resolveConfigPath(tool, ctx);
+  else if (file.fromConfigEnv) base = configEnvOverride(tool, ctx) ?? ctx.home;
+  else base = ctx.home;
+  return {
+    path: join(base, ...file.segments),
+    format: mcp.format,
+    urlKey: mcp.urlKey,
+    type: mcp.type,
+    extra: mcp.extra,
+  };
 }
 
 // Inspect every target tool against the given home, working directory and
