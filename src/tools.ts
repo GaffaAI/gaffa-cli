@@ -171,6 +171,23 @@ export const TOOLS: Tool[] = [
       urlKey: "serverUrl",
     },
   },
+  {
+    id: "pi",
+    label: "Pi",
+    configEnv: "PI_CODING_AGENT_DIR",
+    configSegments: [".pi", "agent"],
+    // Pi reads .pi/skills and .agents/skills as project dirs, and personal
+    // skills from the config dir (~/.pi/agent/skills by default, moved by
+    // PI_CODING_AGENT_DIR when set) plus ~/.agents/skills. .pi/skills is
+    // first so install writes there. No MCP entry yet, Pi's MCP config
+    // location is not verified.
+    skillDirs: [
+      { scope: "project", segments: [".pi", "skills"] },
+      { scope: "project", segments: [".agents", "skills"] },
+      { scope: "personal", fromConfig: true, segments: ["skills"] },
+      { scope: "personal", segments: [".agents", "skills"] },
+    ],
+  },
 ];
 
 export interface DoctorContext {
