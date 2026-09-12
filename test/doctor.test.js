@@ -33,7 +33,7 @@ test("nothing installed: every tool reports not installed and no skills", () => 
   const cwd = tmp();
   try {
     const reports = inspectTools({ home, cwd, env: {} });
-    assert.equal(reports.length, 5);
+    assert.equal(reports.length, 6);
     for (const r of reports) {
       assert.equal(r.installed, false);
       for (const loc of r.skillLocations) assert.deepEqual(loc.skills, []);
@@ -152,7 +152,7 @@ test("json output has a tools array with an entry per tool", async () => {
   const cwd = tmp();
   try {
     const parsed = JSON.parse(await runDoctor({ home, cwd, env: {} }, true));
-    assert.equal(parsed.tools.length, 5);
+    assert.equal(parsed.tools.length, 6);
     assert.ok(parsed.tools.every((t) => "installed" in t && "configPath" in t));
   } finally {
     rmSync(home, { recursive: true, force: true });
@@ -165,7 +165,7 @@ test("human output names every tool", async () => {
   const cwd = tmp();
   try {
     const out = await runDoctor({ home, cwd, env: {} }, false);
-    for (const label of ["Claude Code", "Codex", "GitHub Copilot", "Cursor", "Antigravity"]) {
+    for (const label of ["Claude Code", "Codex", "GitHub Copilot", "Cursor", "Antigravity", "Pi"]) {
       assert.match(out, new RegExp(label));
     }
   } finally {
@@ -274,10 +274,10 @@ test("doctor runs and lists the tools", () => {
   assert.match(stdout, /Antigravity/);
 });
 
-test("doctor --json emits parseable json with five tools", () => {
+test("doctor --json emits parseable json with six tools", () => {
   const { stdout, code } = run(["doctor", "--json"]);
   assert.equal(code, 0);
-  assert.equal(JSON.parse(stdout).tools.length, 5);
+  assert.equal(JSON.parse(stdout).tools.length, 6);
 });
 
 test("help lists the doctor command", () => {

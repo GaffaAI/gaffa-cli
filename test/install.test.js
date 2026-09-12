@@ -84,6 +84,26 @@ test("claude-code and codex resolve to different project dirs", () => {
   }
 });
 
+test("pi resolves project to .pi/skills and personal to the config dir skills", () => {
+  const home = tmp(), cwd = tmp(), override = tmp();
+  try {
+    assert.deepEqual(
+      writeDirs(["pi"], "project", { home, cwd, env: {} }),
+      [join(cwd, ".pi", "skills")],
+    );
+    assert.deepEqual(
+      writeDirs(["pi"], "personal", { home, cwd, env: {} }),
+      [join(home, ".pi", "agent", "skills")],
+    );
+    assert.deepEqual(
+      writeDirs(["pi"], "personal", { home, cwd, env: { PI_CODING_AGENT_DIR: override } }),
+      [join(override, "skills")],
+    );
+  } finally {
+    cleanup(home, cwd, override);
+  }
+});
+
 test("a refresh drops a skill the source no longer has", () => {
   const home = tmp(), cwd = tmp(), src = tmp();
   try {

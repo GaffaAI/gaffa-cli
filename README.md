@@ -23,7 +23,7 @@ npx @gaffa-dev/cli doctor
 npx @gaffa-dev/cli doctor --json
 ```
 
-Supported tools: Claude Code, Codex, GitHub Copilot, Cursor and Antigravity.
+Supported tools: Claude Code, Codex, GitHub Copilot, Cursor, Antigravity and Pi.
 Each is detected by its config directory rather than a binary on the path, since
 an IDE may put nothing on the path. `--json` prints the same result as structured
 output for scripts.
