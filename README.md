@@ -88,8 +88,8 @@ tag. Tagging the branch commit instead would leave the tag pointing at a commit
 the squash merge discards.
 
 ```
-git tag v0.0.2 <merge commit>
-git push origin v0.0.2
+git tag v0.1.0 <merge commit>
+git push origin v0.1.0
 ```
 
 A plain tag (`v0.0.1`) publishes under `latest`. A prerelease tag (`v0.0.1-rc.1`)
