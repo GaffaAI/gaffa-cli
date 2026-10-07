@@ -230,6 +230,30 @@ test("claude-code project MCP writes .mcp.json in the working dir", () => {
   }
 });
 
+test("pi personal MCP follows PI_CODING_AGENT_DIR, else ~/.pi/agent, and the entry is url only", () => {
+  const home = tmp(), cwd = tmp(), cfg = tmp(), home2 = tmp();
+  try {
+    registerMcp({ home, cwd, env: { PI_CODING_AGENT_DIR: cfg } }, { tools: ["pi"], scope: "personal" });
+    assert.deepEqual(readJson(join(cfg, "mcp.json")).mcpServers[MCP_NAME], { url: MCP_URL });
+    assert.ok(!existsSync(join(home, ".pi", "agent", "mcp.json")));
+
+    registerMcp({ home: home2, cwd, env: {} }, { tools: ["pi"], scope: "personal" });
+    assert.ok(existsSync(join(home2, ".pi", "agent", "mcp.json")));
+  } finally {
+    cleanup(home, cwd, cfg, home2);
+  }
+});
+
+test("pi project MCP writes .pi/mcp.json in the working dir", () => {
+  const home = tmp(), cwd = tmp();
+  try {
+    registerMcp({ home, cwd, env: {} }, { tools: ["pi"], scope: "project" });
+    assert.deepEqual(readJson(join(cwd, ".pi", "mcp.json")).mcpServers[MCP_NAME], { url: MCP_URL });
+  } finally {
+    cleanup(home, cwd);
+  }
+});
+
 test("a null gaffa-docs entry does not crash register or unregister", () => {
   const home = tmp(), cwd = tmp();
   try {
