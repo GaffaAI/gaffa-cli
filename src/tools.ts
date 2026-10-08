@@ -40,7 +40,7 @@ export interface McpFile {
 // How to register the gaffa docs MCP server in a tool. Each tool keeps the
 // server list under `mcpServers` (JSON) or `[mcp_servers.NAME]` (TOML), but the
 // entry shape differs: the field carrying the URL, whether a `type` is required,
-// and any fixed extras. All verified against each tool's own docs (GAF-669).
+// and any fixed extras. All verified against each tool's own docs.
 export interface McpConfig {
   format: "json" | "toml";
   files: McpFile[];
@@ -179,14 +179,24 @@ export const TOOLS: Tool[] = [
     // Pi reads .pi/skills and .agents/skills as project dirs, and personal
     // skills from the config dir (~/.pi/agent/skills by default, moved by
     // PI_CODING_AGENT_DIR when set) plus ~/.agents/skills. .pi/skills is
-    // first so install writes there. No MCP entry yet, Pi's MCP config
-    // location is not verified.
+    // first so install writes there.
     skillDirs: [
       { scope: "project", segments: [".pi", "skills"] },
       { scope: "project", segments: [".agents", "skills"] },
       { scope: "personal", fromConfig: true, segments: ["skills"] },
       { scope: "personal", segments: [".agents", "skills"] },
     ],
+    // User-level servers live in mcp.json inside the config dir, which
+    // PI_CODING_AGENT_DIR moves along with it, project servers in .pi/mcp.json.
+    // An HTTP server is just a url, no type field.
+    mcp: {
+      format: "json",
+      files: [
+        { scope: "personal", fromConfig: true, segments: ["mcp.json"] },
+        { scope: "project", segments: [".pi", "mcp.json"] },
+      ],
+      urlKey: "url",
+    },
   },
 ];
 

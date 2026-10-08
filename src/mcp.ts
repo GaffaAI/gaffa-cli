@@ -3,7 +3,7 @@
 //
 // The same install that writes the skills registers the docs MCP at every
 // selected tool that has a known MCP config location for the chosen scope. Each
-// tool keeps its servers differently (see tools.ts): four use JSON under a
+// tool keeps its servers differently (see tools.ts): five use JSON under a
 // `mcpServers` key, Codex uses TOML under `[mcp_servers.NAME]`, and the field
 // carrying the URL is `url` for most but `serverUrl` for Antigravity.
 //
