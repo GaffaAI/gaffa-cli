@@ -41,9 +41,11 @@ npx @gaffa-dev/cli install --tools=claude-code,codex --scope=personal
 With no flags it asks which tools (defaulting to the ones it detects) and which
 scope. Pass `--tools`, `--scope` and `-y` to run it unattended, for example in
 CI. `--scope=project` writes into the working directory so you can commit the
-skills with the repo, `--scope=personal` writes into your home config. A second
-install refreshes to the current skills and drops any it wrote before that no
-longer exist.
+skills with the repo, `--scope=personal` writes into your home config.
+
+Updating is the same command. Run install again and it refreshes to the current
+skills and drops any it wrote before that no longer exist. `doctor` tells you
+when your installed skills are behind the published version.
 
 The install command fetches the published skills from npm. To use a local
 checkout instead, point it at one with `--skills-dir` or `GAFFA_SKILLS_DIR`.

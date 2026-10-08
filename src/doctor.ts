@@ -82,7 +82,7 @@ async function versionCheck(
     return "\nCould not check npm for a newer skills version.\n";
   }
   if (!isNewer(latest, oldest)) return "";
-  return `\nA newer skills version is published: ${latest} (installed ${oldest}). Run gaffa install to refresh.\n`;
+  return `\nA newer skills version is published: ${latest} (installed ${oldest}). Run npx @gaffa-dev/cli install to refresh.\n`;
 }
 
 // Build the doctor report as text. `json` selects the machine-readable form,
