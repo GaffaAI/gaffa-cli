@@ -137,16 +137,46 @@ const MCP_WORDS: Record<McpResult["outcome"], string> = {
   skipped: "skipped",
 };
 
+// Tools that share a file (Claude Code and Copilot both use .mcp.json) go on
+// one line. The first result for a path is the real outcome, the rest only
+// find what it wrote.
+interface McpGroup {
+  toolIds: string[];
+  labels: string[];
+  first: McpResult;
+}
+
+function groupByPath(results: McpResult[]): McpGroup[] {
+  const groups = new Map<string, McpGroup>();
+  for (const r of results) {
+    const group = groups.get(r.path);
+    if (group) {
+      group.toolIds.push(r.toolId);
+      group.labels.push(r.label);
+    } else {
+      groups.set(r.path, { toolIds: [r.toolId], labels: [r.label], first: r });
+    }
+  }
+  return [...groups.values()];
+}
+
+function formatMcpLine(group: McpGroup, ctx: DoctorContext): string {
+  const { labels, first } = group;
+  const detail = first.detail ? `  (${first.detail})` : "";
+  return `  ${labels.join(", ")}  ${shortPath(first.path, ctx)}  ${MCP_WORDS[first.outcome]}${detail}`;
+}
+
 function formatMcpRegister(results: McpResult[], ctx: DoctorContext): string {
   if (results.length === 0) return "";
   const lines = ["", "Registered the gaffa-docs MCP server:"];
-  for (const r of results) {
-    const detail = r.detail ? `  (${r.detail})` : "";
-    lines.push(`  ${r.label}  ${shortPath(r.path, ctx)}  ${MCP_WORDS[r.outcome]}${detail}`);
-  }
+  const groups = groupByPath(results);
+  for (const group of groups) lines.push(formatMcpLine(group, ctx));
   // Claude Code prompts for approval of a project-scoped server on first use.
-  const claudeProject = results.some(
-    (r) => r.toolId === "claude-code" && r.scope === "project" && (r.outcome === "added" || r.outcome === "updated"),
+  const claudeProject = groups.some(
+    (g) =>
+      g.toolIds.includes("claude-code") &&
+      g.first.scope === "project" &&
+      (g.first.outcome === "added" || g.first.outcome === "updated"),
   );
   if (claudeProject) {
     lines.push("");
@@ -159,10 +189,7 @@ function formatMcpUnregister(results: McpResult[], ctx: DoctorContext): string {
   const touched = results.filter((r) => r.outcome !== "skipped" || r.detail);
   if (touched.length === 0) return "";
   const lines = ["", "gaffa-docs MCP server:"];
-  for (const r of touched) {
-    const detail = r.detail ? `  (${r.detail})` : "";
-    lines.push(`  ${r.label}  ${shortPath(r.path, ctx)}  ${MCP_WORDS[r.outcome]}${detail}`);
-  }
+  for (const group of groupByPath(touched)) lines.push(formatMcpLine(group, ctx));
   return lines.join("\n") + "\n";
 }
 

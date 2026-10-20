@@ -35,12 +35,16 @@ export interface McpFile {
   // $CLAUDE_CONFIG_DIR/.claude.json when that variable is set.
   fromConfigEnv?: boolean;
   segments: string[];
+  // Fixed extra fields on the entry in this file (Copilot's personal file wants
+  // a tools allowlist).
+  extra?: Record<string, unknown>;
 }
 
 // How to register the gaffa docs MCP server in a tool. Each tool keeps the
 // server list under `mcpServers` (JSON) or `[mcp_servers.NAME]` (TOML), but the
-// entry shape differs: the field carrying the URL, whether a `type` is required,
-// and any fixed extras. All verified against each tool's own docs.
+// entry shape differs: the field carrying the URL and whether a `type` is
+// required. Verified against each tool's own docs, except where a tool's
+// comment says otherwise.
 export interface McpConfig {
   format: "json" | "toml";
   files: McpFile[];
@@ -48,8 +52,6 @@ export interface McpConfig {
   urlKey: "url" | "serverUrl";
   // A `type` the entry needs, if any (Claude Code and Copilot want "http").
   type?: string;
-  // Fixed extra fields on the entry (Copilot wants a tools allowlist).
-  extra?: Record<string, unknown>;
 }
 
 export interface Tool {
@@ -122,14 +124,20 @@ export const TOOLS: Tool[] = [
       { scope: "personal", fromConfig: true, segments: ["skills"] },
       { scope: "personal", segments: [".agents", "skills"] },
     ],
-    // Only the personal file (~/.copilot/mcp-config.json) is documented, so a
-    // project install writes no Copilot MCP entry.
+    // Copilot CLI reads project servers from .mcp.json, the file Claude Code
+    // writes too, and loads them once the folder is trusted. Its docs mark
+    // `tools` as required, but an entry without it loads with all tools
+    // enabled (checked on 1.0.74 and 1.0.100), while Claude Code rejects a
+    // `tools` string array. So the shared file gets the Claude Code shape and
+    // only the personal file carries the allowlist.
     mcp: {
       format: "json",
-      files: [{ scope: "personal", fromConfig: true, segments: ["mcp-config.json"] }],
+      files: [
+        { scope: "personal", fromConfig: true, segments: ["mcp-config.json"], extra: { tools: ["*"] } },
+        { scope: "project", segments: [".mcp.json"] },
+      ],
       urlKey: "url",
       type: "http",
-      extra: { tools: ["*"] },
     },
   },
   {
@@ -304,7 +312,7 @@ export function mcpTarget(tool: Tool, scope: Scope, ctx: DoctorContext): McpTarg
     format: mcp.format,
     urlKey: mcp.urlKey,
     type: mcp.type,
-    extra: mcp.extra,
+    extra: file.extra,
   };
 }
 
