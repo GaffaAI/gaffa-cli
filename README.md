@@ -5,7 +5,7 @@ skills.
 
 ## Use it
 
-No install needed, run it through npx:
+No install needed, run it through npx on Node.js 22 or newer:
 
 ```
 npx @gaffa-dev/cli --help
