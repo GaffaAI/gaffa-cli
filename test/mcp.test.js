@@ -142,11 +142,29 @@ test("register adds a TOML table for Codex and preserves existing config", () =>
   }
 });
 
-test("copilot has no project MCP file, so a project register skips it", () => {
+test("copilot project MCP shares .mcp.json with Claude Code, without the tools allowlist", () => {
   const home = tmp(), cwd = tmp();
   try {
-    const results = registerMcp({ home, cwd, env: {} }, { tools: ["copilot"], scope: "project" });
-    assert.equal(results.length, 0);
+    const ctx = { home, cwd, env: {} };
+    const results = registerMcp(ctx, { tools: ["claude-code", "copilot"], scope: "project" });
+    assert.deepEqual(results.map((r) => [r.toolId, r.outcome]), [
+      ["claude-code", "added"],
+      ["copilot", "unchanged"],
+    ]);
+    // One entry in the shape both tools read. Claude Code rejects a tools
+    // string array, Copilot defaults to all tools without one.
+    assert.deepEqual(readJson(join(cwd, ".mcp.json")).mcpServers, {
+      [MCP_NAME]: { type: "http", url: MCP_URL },
+    });
+
+    // Copilot alone writes the same file and entry.
+    const cwd2 = tmp();
+    try {
+      registerMcp({ home, cwd: cwd2, env: {} }, { tools: ["copilot"], scope: "project" });
+      assert.deepEqual(readJson(join(cwd2, ".mcp.json")).mcpServers[MCP_NAME], { type: "http", url: MCP_URL });
+    } finally {
+      cleanup(cwd2);
+    }
   } finally {
     cleanup(home, cwd);
   }
@@ -358,6 +376,37 @@ function sourceSkill(srcDir, name) {
   mkdirSync(join(srcDir, name), { recursive: true });
   writeFileSync(join(srcDir, name, "SKILL.md"), "skill\n");
 }
+
+test("cli install reports a shared MCP file once, naming both tools", () => {
+  const cwd = tmp(), src = tmp();
+  try {
+    sourceSkill(src, "gaffa-find");
+    const out = run(["install", "--tools=claude-code,copilot", "--scope=project", `--skills-dir=${src}`, "--yes"], cwd);
+    assert.equal(out.code, 0);
+    assert.match(out.stdout, /Claude Code, GitHub Copilot {2}\.\/\.mcp\.json {2}added/);
+    assert.equal((out.stdout.match(/\.mcp\.json/g) || []).length, 1);
+    assert.match(out.stdout, /approve the project MCP server/);
+
+    // The note does not depend on which tool wrote the file first.
+    const cwd2 = tmp();
+    try {
+      const reversed = run(["install", "--tools=copilot,claude-code", "--scope=project", `--skills-dir=${src}`, "--yes"], cwd2);
+      assert.match(reversed.stdout, /GitHub Copilot, Claude Code {2}\.\/\.mcp\.json {2}added/);
+      assert.match(reversed.stdout, /approve the project MCP server/);
+    } finally {
+      cleanup(cwd2);
+    }
+
+    // Uninstall reports the shared file once too, even when the entry is left alone.
+    writeFileSync(join(cwd, ".mcp.json"), JSON.stringify({ mcpServers: { [MCP_NAME]: { type: "http", url: "https://mine.example" } } }));
+    const un = run(["uninstall", "--scope=project", "--yes"], cwd);
+    assert.equal(un.code, 0);
+    assert.equal((un.stdout.match(/\.mcp\.json/g) || []).length, 1);
+    assert.match(un.stdout, /points elsewhere/);
+  } finally {
+    cleanup(cwd, src);
+  }
+});
 
 test("cli install registers the docs MCP, and --no-mcp skips it", () => {
   const cwd = tmp(), src = tmp();

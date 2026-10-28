@@ -54,7 +54,8 @@ The same run also registers the Gaffa docs MCP server (`https://gaffa.dev/docs/~
 in each tool's own MCP config, merging into an existing config without touching
 your other servers. A config it cannot parse is backed up and left alone. Pass
 `--no-mcp` to skip this. At project scope Claude Code will ask you to approve the
-server the first time you use it.
+server the first time you use it, and Copilot CLI loads it once you have trusted
+the folder.
 
 ### uninstall
 
